@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>setInterval Example</title>
+</head>
+<body>
+  <h1>setInterval Demo</h1>
+  <p id="counter">0</p>
+
+  <script>
+    // Define a function to run repeatedly
+    function updateCounter() {
+            fetch('/post_back_end', {
+
+    // Declare what type of data we're sending
+    headers: {
+      'Content-Type': 'application/json'
+    },
+
+    // Specify the method
+    method: 'POST',
+
+    // A JSON payload
+    body: JSON.stringify({
+        "greeting": "javascript !"
+    })
+}).then(function (response) { // At this point, Flask has printed our JSON
+  return response.text();
+}).then(function (text) {
+
+    console.log('POST response: ');
+
+    // Should be 'OK' if everything was successful
+    console.log(text);
+});
+
+
+      }
+
+    // Call updateCounter() every 1000 milliseconds (1 second)
+    setInterval(updateCounter, 0.2);
+  </script>
+</body>
+</html>

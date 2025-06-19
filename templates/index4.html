@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>WebSocket POST JSON Demo</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    pre { background: #f4f4f4; padding: 10px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h2>WebSocket JSON POST</h2>
+  <pre id="output">Connecting...</pre>
+
+  <script>
+    const output = document.getElementById("output");
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(protocol + "//" + window.location.host + "/ws");
+
+    let queue = [];
+    let sending = false;
+
+    ws.onopen = () => {
+      output.textContent += "\n✅ WebSocket connected.";
+
+      // Add a test message to queue
+      queueMessage({
+        "kornbot380@hotmail.com": {
+          "Smart_Robots": {
+            "wrist": { "Analog-read": 88 },
+            "shoulder": { "Analog-read": 77 },
+            "base": { "Analog-read": 66 }
+          }
+        }
+      });
+    };
+
+    ws.onmessage = (event) => {
+      const response = JSON.parse(event.data);
+      output.textContent += "\n🔄 Server response:\n" + JSON.stringify(response, null, 2);
+
+      sending = false;
+      sendNext();  // continue queue
+    };
+
+    ws.onerror = (err) => {
+      output.textContent += "\n❌ WebSocket error: " + err.message;
+    };
+
+    ws.onclose = () => {
+      output.textContent += "\n🔌 WebSocket closed.";
+    };
+
+    function queueMessage(data) {
+      queue.push(data);
+      sendNext();
+    }
+
+    function sendNext() {
+      if (!sending && queue.length > 0 && ws.readyState === WebSocket.OPEN) {
+        sending = true;
+        const msg = queue.shift();
+        ws.send(JSON.stringify(msg));
+        output.textContent += "\n📤 Sent:\n" + JSON.stringify(msg, null, 2);
+
+        // Manual cleanup
+        for (let key in msg) delete msg[key];
+      }
+    }
+
+    // Optional: send test message every 3 seconds
+    setInterval(() => {
+      const rand = Math.random() * 100;
+      queueMessage({
+        "kornbot380@hotmail.com": {
+          "Smart_Robots": {
+            "wrist": { "Analog-read": rand },
+            "shoulder": { "Analog-read": rand + 5 },
+            "base": { "Analog-read": rand - 5 }
+          }
+        }
+      });
+    }, 1);
+  </script>
+</body>
+</html>

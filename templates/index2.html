@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>WebSocket Auto Send with Interval</title>
+</head>
+<body>
+  <h1>WebSocket Auto Sender</h1>
+  <pre id="output">Connecting...</pre>
+
+  <script>
+    const output = document.getElementById("output");
+
+    function log(text) {
+      output.textContent += "\n" + text;
+    }
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = protocol + "//" + window.location.host + "/ws";
+    const socket = new WebSocket(wsUrl);
+
+    socket.addEventListener("open", () => {
+      log("✅ WebSocket connected");
+
+      // Start sending payload every 1 second
+      setInterval(() => {
+        if (socket.readyState === WebSocket.OPEN) {
+          const payload = {
+            "kornbot380@hotmail.com": {
+              "Smart_Robots": {
+                "wrist": { "Analog-read": Math.random() * 100 },
+                "shoulder": { "Analog-read": Math.random() * 100 },
+                "base": { "Analog-read": Math.random() * 100 }
+              }
+            }
+          };
+
+          const payloadStr = JSON.stringify(payload);
+          socket.send(payloadStr);
+          log("📤 Payload sent:\n" + payloadStr);
+        }
+      }, 1); // Send every 1000 milliseconds (1 second)
+    });
+
+    socket.addEventListener("message", (event) => {
+      try {
+        const response = JSON.parse(event.data);
+        log("📥 Response received:\n" + JSON.stringify(response, null, 2));
+        console.log("WebSocket feedback:", response);
+      } catch (err) {
+        log("❌ Error parsing message: " + err);
+      }
+    });
+
+    socket.addEventListener("error", (event) => {
+      log("❌ WebSocket error occurred.");
+      console.error("WebSocket error:", event);
+    });
+
+    socket.addEventListener("close", () => {
+      log("🔒 WebSocket connection closed.");
+    });
+  </script>
+</body>
+</html>

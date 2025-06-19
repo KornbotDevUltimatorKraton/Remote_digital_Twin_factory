@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>WebSocket JSON POST Demo (Local)</title>
+</head>
+<body>
+  <h1>WebSocket JSON POST Demo</h1>
+  <pre id="output">Connecting...</pre>
+
+  <script>
+    const output = document.getElementById("output");
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = protocol + "//" + window.location.host + "/ws";
+    const socket = new WebSocket(wsUrl);
+
+    socket.onopen = () => {
+      output.textContent += "\n🔌 WebSocket connected";
+
+      const payload = {
+        "kornbot380@hotmail.com": {
+          "Smart_Robots": {
+            "wrist": { "Analog-read": 88 },
+            "shoulder": { "Analog-read": 77 },
+            "base": { "Analog-read": 66 }
+          }
+        }
+      };
+
+      socket.send(JSON.stringify(payload));
+      output.textContent += "\n📤 Payload sent:\n" + JSON.stringify(payload, null, 2);
+    };
+
+    socket.onmessage = (event) => {
+      const response = JSON.parse(event.data);
+      output.textContent += "\n📥 Response received:\n" + JSON.stringify(response, null, 2);
+
+      // Log the response in the browser console
+      console.log("WebSocket feedback:", response);
+    };
+
+    socket.onerror = (error) => {
+      output.textContent += "\n❌ WebSocket error: " + error.message;
+      console.error("WebSocket error:", error);
+    };
+
+    socket.onclose = () => {
+      output.textContent += "\n🔒 WebSocket connection closed";
+      console.log("WebSocket closed");
+    };
+  </script>
+</body>
+</html>

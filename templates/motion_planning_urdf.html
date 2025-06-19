@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+        <meta charset="utf-8"/>
+        
+        <title>URDF_Motion_Control</title>
+        <!--Setting the URDF data-->
+        <input type="hidden" id="email_data" value="{{shot_datas}}">  <!--value={{color_hex}} of the current model send from the web open link data-->   
+        <input type="hidden" id="model_name" value="{{model_files}}"> 
+        <script src="https://unpkg.com/@webcomponents/webcomponentsjs@2.4.3/webcomponents-bundle.js"></script>
+        <link href="https://fonts.googleapis.com/css?family=Roboto:100,300" rel="stylesheet"/>
+        <link href="../static/styles.css" type="text/css" rel="stylesheet" />
+        <script src="../static/src/redirect.js"></script>
+        <script src="https://requirejs.org/docs/release/2.3.5/minified/require.js"></script>
+        <script src='https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.5.1/dat.gui.min.js'></script>
+       <!-- <script src="https://cdn.jsdelivr.net/npm/kalmanjs@1.1.0/lib/kalman.min.js" type="text/javascript"></script> -->
+        <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.138.0/build/three.module.js",
+                "OrbitControls": "https://unpkg.com/three@0.138.0/examples/jsm/controls/OrbitControls.js"
+            }
+        }
+    </script>  
+    
+    </head>
+    <body tabindex="0">
+        
+        <div id="menu">
+            <ul id="urdf-options">  <!--T12_flipped.URDF--><!--Joint_link_create_1_leg.URDF--> <!--first_generate.URDF-->
+                <!--Atlete_robotics.URDF-->
+                <!--Need project name and file name of the project inside the urdf -->
+                <li urdf="../static/urdf/Project_URDF/urdf/{{model_files}}" color="#033843">{{project_names}}</li>  <!--#E91E63 Change the color after the color code -->
+                
+                <!--<li urdf="static/urdf/TriATHLETE/urdf/TriATHLETE_flipped.URDF" color="#009688">TriATHLETE</li>-->
+                <!--<li urdf="static/urdf/TriATHLETE_Climbing/urdf/TriATHLETE_flipped.URDF" color="#FFB300">TriATHLETE Climbing</li>-->
+            </ul>
+
+            <div id="controls" class="hidden">
+                <div id="toggle-controls"></div>
+                <!--<div>Drag and drop URDF files or folders! <br/> (Chrome Only)</div> -->
+                <div id="ignore-joint-limits" class="toggle">Ignore Joint Limits</div>
+                <div id="radians-toggle" class="toggle">Use Radians</div>
+                <div id="autocenter-toggle" class="toggle checked">Autocenter</div>
+                <div id="collision-toggle" class="toggle">Show Collision</div>
+                <div id="do-animate" class="toggle checked">Animate Joints</div>
+                <label>
+                    Up Axis
+                    <select id="up-select">
+                        <option value="+X">+X</option>
+                        <option value="-X">-X</option>
+                        <option value="+Y">+Y</option>
+                        <option value="-Y">-Y</option>
+                        <option value="+Z">+Z</option>
+                        <option value="-Z" selected>-Z</option>
+                    </select>
+                </label>
+                <ul></ul>
+            </div>
+        </div>
+        <urdf-viewer up="-Z" display-shadow tabindex="0"></urdf-viewer>
+
+        <!--<script src="static/src/index.js"></script> place the code of javascript to replate index--> 
+        <!--<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.js"></script>-->
+        <!--<script src="static/src/dragAndDrop.js"></script>-->
+        <script type="module" >
+         /* globals */
+        var gui = new dat.GUI({autoPlace: true}); //Load the gui into th scene 
+        var joint_name_mem = {}; 
+        var Motor_type_mem = {}; 
+        var Communication_mem = {};
+        var motor_function = {};
+        var joint_function = {};  
+        var joint_parameters = {}; 
+        var project_include = {};
+        var Create_joint_package = {};
+        var Joint_type_ref = {};   //Get the joint type data 
+        //single board computer 
+        var Board_controllers_embed = {};   
+        var compo_devices_i2c_control = {} ; 
+        var compo_devices_read = {}; 
+        var i2c_gpio_pin = {};  //Get the gpio pin data 
+        //MCUs microcontroller
+        var mcus_lists_pins = {};  
+        var mcus_families = {}; 
+        var mcus_category = {}; 
+        var mcus_number = {}; 
+        var mcus_IO_function = {}; 
+        var mcus_pack_list  = {};
+        var mcus_packages_dat = {}; 
+        var computer_Boards = {};
+        var request_devices_comport = {};
+        var Board_packages = {};   // Get the board package to verify the boards data of the client to pack the information to the write positioning generator 
+        var request_port_coms = {};
+        var define_hardware = {};  
+        var motion_recorder = {}; // Save the motion control to control the robot motion 
+        var feedback_sensor = {}; //get the feedback sensor 
+        var analog_pin_sensor = {}; //get the analog pin sensor with the position integrated into the system 
+        var I2C_reader_pin = {}; //Get the i2c reader pin position this will only working on the single-board computer to access the i2c on the preinstalled sensor library and smbus for a range of single-board computer support 
+        var feed_back_status = {}; //Get the i2c reader pin   
+        var analog_pin_name = {}; 
+        var analog_mcus_pin = {};
+        var analog_mcus_pos = {}; 
+        var joint_static = {}; 
+        var Motion_rec = {};  //The data will be append the value into the dict eh
+        var current_mod_select = {}; //Get the current model selection 
+   
+        //Only work on the server 
+        /*   
+        fetch('/devices_reporter', {
+      
+      // Declare what type of data we're sending
+      headers: {
+        'Content-Type': 'application/json'
+      },
+
+      // Specify the method
+      method: 'POST',
+
+      // A JSON payload
+      body: JSON.stringify({
+        "email": String(JSON.parse(atob(document.getElementById('email_data').value))['email'])
+      })
+    }).then(function (response) { // At this point, Flask has printed our JSON
+      return response.text();
+    }).then(function (text) {
+
+      console.log('POST response: ');
+      // Should be 'OK' if everything was successful
+      json_data = JSON.parse(text);
+
+    });
+    */
+    function downloadJSON(data, filename) {
+                         const json = JSON.stringify(data); 
+                         const blob = new Blob([json], { type: 'application/json' });
+                         const url = URL.createObjectURL(blob);
+                         const a = document.createElement('a');
+                         a.href = url;
+                         a.download = filename || 'data.json';
+                         document.body.appendChild(a);
+                         a.click();
+                         document.body.removeChild(a);
+                         URL.revokeObjectURL(url);
+    }
+        var settings = {
+          Project_name: document.getElementById("model_name").value,
+          joint_created:"Non_select",
+          Start_record:function(){
+                      console.log("Start recording motion from angle of 3D model data"); //Get the input data to running in the recorder 
+                      alert("Start record joints motion from 3d model")
+                      Motion_rec["Start_rec"] = {"Model":[]}  //Get the current model select record        
+          },
+          Start_sensor_rec:function(){
+                     console.log("Start recording motion from the angle of 3D model data");   
+                     alert("Start record motion from joints sensor data")
+                     Motion_rec["Start_rec"] = {"Sensors":[]}  //Get the  current sensor select record          
+          },
+          Stop_record:function(){
+                     console.log("Stop recording now replacing the list into the string value");
+                     alert("Stop recording!")
+                     Motion_rec["Start_rec"] = {"Stop_recorder_motion":[]}            
+          },
+          save_recorder:function(){
+                     console.log("Save recorded data")
+                     alert("Save recorded data")
+                     Motion_rec["Start_rec"] = {"Save_record":[]}                       
+          },
+          play_recorder:function(){
+                     console.log("Play recording running the loop of the recording list into the data ");
+                     Motion_rec['Start_rec'] = {"Play_record":[]} //Play the record data from the list of the function 
+                                   
+          },
+          export_motion:function(){
+                     console.log("Export recorded motion"); 
+                     //export the json file of the recorded motion 
+                     var account_payload = document.getElementById('email_data').value
+                     var account_Data = JSON.parse(atob(account_payload));
+                     var project_name = account_Data["project_name"]
+                     downloadJSON(joint_static, project_name+"_motion_recorded.json");                 
+
+          },
+          UPload_URDF:function(){
+                          //Upload function code of data fetch upload 
+                          console.log("Upload edited urdf file") 
+ 
+             
+          }
+          ,
+          joint_post_dat:function(){
+                    //Fetch data to backend to send the joint package dat 
+                    console.log("Joint generator ",Create_joint_package);
+                    fetch('/Create_joint_control', {
+                      // Declare what type of data we're sending
+                      headers: {
+                          'Content-Type': 'application/json'
+                      },
+                      // Specify the method
+                      method: 'POST',
+                      // A JSON payload
+                      body: JSON.stringify(Create_joint_package)
+                      }).then(function (response) { // At this point, Flask has printed our JSON
+                      return response.text();
+                      }).then(function (text) {
+                      console.log('POST response: ');
+                          // Should be 'OK' if everything was successful
+                          var data_joint_gen = JSON.parse(text);
+                          console.log("Joint_gen ",data_joint_gen);
+                          alert("Generate joint control on hardware successfully!")     
+                      }); 
+
+          },
+          joint_hardware_gen:function(){
+               
+               var board_controller = Board_controllers_embed['Controller_boards_embed'] 
+               //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+                      //Single board computer 
+               if(board_controller == "SBC"){
+                 console.log('Generate the joint hardware sync motion control');
+                 var profile_data = JSON.parse(atob(document.getElementById('email_data').value))
+                 var computerboards = computer_Boards['computer_board'] //Computer onboard nme           
+                 var joint_names = joint_name_mem['joint_name']
+                 var motor_type_dat  = Motor_type_mem['motor_type']
+                 var communication_data = Communication_mem['communication']
+                 var i2cDevices = compo_devices_i2c_control['i2c_control'] 
+                 var i2cGPIO_pin = i2c_gpio_pin['i2c_GPIO']
+                 var I2C_mcus_read_sensor = I2C_reader_pin['read_i2c_dev'] //Get the i2c device pin address    
+                 Board_packages[board_controller] = {"SBC":{'communication':communication_data,'i2c_sbc_devices':i2cDevices,'i2c_sbc_pin':i2cGPIO_pin,"Joints_type":Joint_type_ref["Joints_type"]}}                         
+                 joint_parameters[joint_names]  = Board_packages['SBC']
+                 
+                 define_hardware[computerboards] = joint_parameters
+                 project_include[Object.keys(profile_payload[profile_data['email']])[0]] = define_hardware
+                 Create_joint_package[profile_data['email']] = project_include;     
+                 console.log(joint_parameters);
+                 console.log(Create_joint_package);
+                 console.log(Object.keys(profile_payload[profile_data['email']])[0]);  
+                 alert(joint_name_mem['joint_name']+" joint generated")
+               }
+               //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+               if(board_controller == "MCUs"){
+               //MCUs
+               console.log('Generate the joint hardware sync motion control');
+               var profile_data = JSON.parse(atob(document.getElementById('email_data').value))
+               var joint_names = joint_name_mem['joint_name']
+               var motor_type_dat  = Motor_type_mem['motor_type']
+               var communication_data = Communication_mem['communication']
+               var mcus_Families = mcus_families['mcus_families']
+               var mcus_Category = mcus_category['mcus_categories']
+               var mcus_IO_func  = mcus_IO_function['mcus_IO']
+               var mcus_Code     = mcus_number['mcus_codes']
+               var mcus_pins_pack = mcus_pack_list['Pins_function']
+               var mcus_packages = mcus_packages_dat['Package_list']
+               var computerboards = computer_Boards['computer_board'] //Computer onboard nme           
+               var communications_port = request_port_coms['Communication_port']   //Communication serial hardware connection or I2C device address to communicate with the board 
+               // Feedback status 
+               var feed_back_stat = feed_back_status["status_fb"]  // Get the feedback status 
+               var feed_back_sensors = feedback_sensor["sensor_feed_back"]
+               //Assembly analog pin data input 
+               var analog_pins_mcus = analog_pin_sensor['Pin_analog_data']
+               var analog_pins_names = analog_pin_name["Pin_names"] 
+               //var analog_mcus_pins = analog_mcus_pin["mcus_analog_pins"] 
+               //var analog_mcus_poss = analog_mcus_pos["mcus_analog_positions"] 
+               console.log(mcus_Families,mcus_Category,mcus_IO_func,mcus_Code,mcus_pins_pack,mcus_packages,computerboards,communications_port); 
+               //Add microcontroller part of the components specific data
+
+               Board_packages[board_controller] = {"MCUs":{'motor_type':motor_type_dat,'communication':communication_data,'mcus_families':mcus_Families,'mcus_IO':mcus_IO_func,'mcus_code_number':mcus_Code,'mcus_pins':mcus_pins_pack,'mcus_package':mcus_packages,'Port_address':communications_port,'Joints_type':Joint_type_ref["Joints_type"],'Signal_fbs':feed_back_sensors,'Pin_analog_sensor':analog_pins_mcus}}         
+               joint_parameters[joint_names] = Board_packages['MCUs']
+               define_hardware[computerboards] = joint_parameters
+               project_include[Object.keys(profile_payload[profile_data['email']])[0]] = define_hardware
+               Create_joint_package[profile_data['email']] = project_include;     
+               console.log(joint_parameters);
+               console.log(Create_joint_package);
+               console.log(Object.keys(profile_payload[profile_data['email']])[0]);  
+               alert(joint_name_mem['joint_name']+" joint generated")
+            }               
+               //var mcus_datas = mcus_pack_list['Pins_function']    
+               //console.log(mcus_Families,mcus_Category,mcus_Code,mcus_Category); 
+               //console.log(mcus_Families,mcus_Category,mcus_IO_func,mcus_Code,mcus_pins_pack,mcus_packages,computerboards,communications_port); 
+               //joint_parameters[joint_names] = {'motor_type':motor_type_dat,'communication':communication_data,'mcus_families':mcus_Families,'mcus_IO':mcus_IO_func,'mcus_code_number':mcus_Code,'mcus_pins':mcus_pins_pack,'mcus_package':mcus_packages,'Port_address':communications_port}
+               //define_hardware[computerboards] = joint_parameters
+              
+        }
+        
+        }    
+        gui.add(settings, 'Project_name').name('Project_file').onChange(function(values){
+                 console.log("Project_name",values); 
+        });
+        //var upload_urdf = gui.addFolder("Upload_URDF");  ///Get the urdf model 
+        //upload_urdf.add(settings,"UPload_URDF").name('upload_urdf');  //Upload  
+        //upload_urdf.open(); //Upload the urdf model function
+        var computer_onboard = gui.addFolder("Computer on-board")
+        settings['Computer_onboards'] = 'Non-select'; 
+        console.log(settings); 
+        computer_onboard.open();  // Open the folder 
+        /*
+        fetch('/Computer_board_connected', {
+                        // Declare what type of data we're sending
+                        headers: {
+                             'Content-Type': 'application/json'
+                        },
+                        // Specify the method
+                        method: 'POST',
+                        // A JSON payload
+                        body: JSON.stringify({
+                                   "email": JSON.parse(atob(document.getElementById('email_data').value))['email']
+                        })
+                        }).then(function (response) { // At this point, Flask has printed our JSON
+                        return response.text();
+                        }).then(function (text) {
+                        console.log('POST response: ');
+                        // Should be 'OK' if everything was successful
+        var data_boards = JSON.parse(text);
+        var compute_host = Object.keys(data_boards)
+        compute_host.unshift("Non-select"); 
+        var computer_onboards = computer_onboard.add(settings,'Computer_onboards',compute_host).name("Host")
+        computer_onboards.setValue('Non-select')
+        computer_onboards.onChange(function(values_comboard){
+            computer_Boards['computer_board'] = values_comboard;
+            console.log(computer_Boards);
+            //Fetch back the data to select the current single board computer onboard on system
+            //Email and onboard computer data to send back to the worker server processing data 
+
+        })
+    });
+    */
+    
+
+
+        import * as THREE from 'three';
+        //import { registerDragEvents } from 'dragAndDrop';
+        // Converts a datatransfer structer into an object with all paths and files
+// listed out. Returns a promise that resolves with the file structure.
+function dataTransferToFiles(dataTransfer) {
+
+if (!(dataTransfer instanceof DataTransfer)) {
+
+    throw new Error('Data must be of type "DataTransfer"', dataTransfer);
+
+}
+
+const files = {};
+
+// recurse down the webkit file structure resolving
+// the paths to files names to store in the `files`
+// object
+function recurseDirectory(item) {
+
+    if (item.isFile) {
+
+        return new Promise(resolve => {
+            item.file(file => {
+                files[item.fullPath] = file;
+                resolve();
+            });
+        });
+
+    } else {
+
+        const reader = item.createReader();
+
+        return new Promise(resolve => {
+
+            const promises = [];
+
+            // exhaustively read all the directory entries
+            function readNextEntries() {
+
+                reader.readEntries(et => {
+
+                    if (et.length === 0) {
+
+                        Promise.all(promises).then(() => resolve());
+
+                    } else {
+
+                        et.forEach(e => {
+
+                            promises.push(recurseDirectory(e));
+
+                        });
+                        readNextEntries();
+
+                    }
+
+                });
+
+            }
+
+            readNextEntries();
+
+        });
+    }
+}
+
+return new Promise(resolve => {
+
+    // Traverse down the tree and add the files into the zip
+    const dtitems = dataTransfer.items && [...dataTransfer.items];
+    const dtfiles = [...dataTransfer.files];
+
+    if (dtitems && dtitems.length && dtitems[0].webkitGetAsEntry) {
+
+        const promises = [];
+        for (let i = 0; i < dtitems.length; i++) {
+            const item = dtitems[i];
+            const entry = item.webkitGetAsEntry();
+
+            promises.push(recurseDirectory(entry));
+
+        }
+        Promise.all(promises).then(() => resolve(files));
+
+    } else {
+
+        // add a '/' prefix to math the file directory entry
+        // on webkit browsers
+        dtfiles
+            .filter(f => f.size !== 0)
+            .forEach(f => files['/' + f.name] = f);
+
+        resolve(files);
+
+    }
+});
+}
+export function registerDragEvents(viewer, callback) {
+
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('dragenter', e => e.preventDefault());
+document.addEventListener('drop', e => {
+
+    e.preventDefault();
+
+    // convert the files
+    dataTransferToFiles(e.dataTransfer)
+        .then(files => {
+
+            // removes '..' and '.' tokens and normalizes slashes
+            const cleanFilePath = path => {
+
+                return path
+                    .replace(/\\/g, '/')
+                    .split(/\//g)
+                    .reduce((acc, el) => {
+
+                        if (el === '..') acc.pop();
+                        else if (el !== '.') acc.push(el);
+                        return acc;
+
+                    }, [])
+                    .join('/');
+
+            };
+
+            // set the loader url modifier to check the list
+            // of files
+            const fileNames = Object.keys(files).map(n => cleanFilePath(n));
+            viewer.urlModifierFunc = url => {
+
+                // find the matching file given the requested url
+                const cleaned = cleanFilePath(url.replace(viewer.package, ''));
+                const fileName = fileNames
+                    .filter(name => {
+
+                        // check if the end of file and url are the same
+                        const len = Math.min(name.length, cleaned.length);
+                        return cleaned.substr(cleaned.length - len) === name.substr(name.length - len);
+
+                    }).pop();
+
+                if (fileName !== undefined) {
+
+                    // revoke the url after it's been used
+                    const bloburl = URL.createObjectURL(files[fileName]);
+                    requestAnimationFrame(() => URL.revokeObjectURL(bloburl));
+
+                    return bloburl;
+
+                }
+
+                return url;
+
+            };
+
+            // set the source of the element to the most likely intended display model
+            const filesNames = Object.keys(files);
+            viewer.up = '+Z';
+            document.getElementById('up-select').value = viewer.up;
+
+            // filter all files ending in urdf
+            const availableModels = fileNames.filter(n => /urdf$/i.test(n));
+            // remove existing entries from #urdf-options
+            const urdfOptionsContainer = document.querySelector('#urdf-options');
+
+            while (urdfOptionsContainer.firstChild){
+                
+                urdfOptionsContainer.removeChild(urdfOptionsContainer.firstChild);
+            }
+            // create new entries in #urdf-options
+            availableModels.forEach(model => {
+                const li = document.createElement('li');
+                li.setAttribute('urdf', model);
+                li.setAttribute('color', '#263238');
+                // extract filename from full path
+                li.textContent = model.split(/[\\\/]/).pop();
+                urdfOptionsContainer.appendChild(li);
+            
+            });
+
+            viewer.urdf =
+                filesNames
+                    .filter(n => /urdf$/i.test(n))
+                    .shift();
+
+        }).then(() => callback());
+
+});
+
+}    
+import { STLLoader } from '../static/three/examples/jsm/loaders/STLLoader.js';
+import { GLTFLoader } from '../static/three/examples/jsm/loaders/GLTFLoader.js';
+import { ColladaLoader } from '../static/three/examples/jsm/loaders/ColladaLoader.js';
+import { OBJLoader } from '../static/three/examples/jsm/loaders/OBJLoader.js';
+import { VTKLoader } from '../static/three/examples/jsm/loaders/VTKLoader.js';
+import URDFManipulator from '../static/urdf-manipulator-element.js';
+customElements.define('urdf-viewer', URDFManipulator);
+
+// declare these globally for the sake of the example.
+// Hack to make the build work with webpack for now.
+// TODO: Remove this once modules or parcel is being used
+const viewer = document.querySelector('urdf-viewer');
+
+const limitsToggle = document.getElementById('ignore-joint-limits');
+const collisionToggle = document.getElementById('collision-toggle');
+const radiansToggle = document.getElementById('radians-toggle');
+const autocenterToggle = document.getElementById('autocenter-toggle');
+const upSelect = document.getElementById('up-select');
+const sliderList = document.querySelector('#controls ul');
+const controlsel = document.getElementById('controls');
+const controlsToggle = document.getElementById('toggle-controls');
+const animToggle = document.getElementById('do-animate');
+const DEG2RAD = Math.PI / 180;
+const RAD2DEG = 1 / DEG2RAD;
+let sliders = {};
+
+// Global Functions
+const setColor = color => {
+
+    document.body.style.backgroundColor = color;
+    viewer.highlightColor = '#' + (new THREE.Color(0xffffff)).lerp(new THREE.Color(color), 0.35).getHexString();
+
+};
+
+// Events
+// toggle checkbox
+limitsToggle.addEventListener('click', () => {
+    limitsToggle.classList.toggle('checked');
+    viewer.ignoreLimits = limitsToggle.classList.contains('checked');
+});
+
+radiansToggle.addEventListener('click', () => {
+    radiansToggle.classList.toggle('checked');
+    Object
+        .values(sliders)
+        .forEach(sl => sl.update());
+});
+
+collisionToggle.addEventListener('click', () => {
+    collisionToggle.classList.toggle('checked');
+    viewer.showCollision = collisionToggle.classList.contains('checked');
+});
+
+autocenterToggle.addEventListener('click', () => {
+    autocenterToggle.classList.toggle('checked');
+    viewer.noAutoRecenter = !autocenterToggle.classList.contains('checked');
+});
+
+upSelect.addEventListener('change', () => viewer.up = upSelect.value);
+
+controlsToggle.addEventListener('click', () => controlsel.classList.toggle('hidden'));
+
+// watch for urdf changes
+viewer.addEventListener('urdf-change', () => {
+
+    Object
+        .values(sliders)
+        .forEach(sl => sl.remove());
+    sliders = {};
+
+});
+
+viewer.addEventListener('ignore-limits-change', () => {
+
+    Object
+        .values(sliders)
+        .forEach(sl => sl.update());
+
+});
+
+viewer.addEventListener('angle-change', e => {
+
+    if (sliders[e.detail]) sliders[e.detail].update();
+
+});
+
+viewer.addEventListener('joint-mouseover', e => {
+
+    const j = document.querySelector(`li[joint-name="${ e.detail }"]`);
+    if (j) j.setAttribute('robot-hovered', true);
+
+});
+
+viewer.addEventListener('joint-mouseout', e => {
+
+    const j = document.querySelector(`li[joint-name="${ e.detail }"]`);
+    if (j) j.removeAttribute('robot-hovered');
+
+});
+
+let originalNoAutoRecenter;
+viewer.addEventListener('manipulate-start', e => {
+
+    const j = document.querySelector(`li[joint-name="${ e.detail }"]`);
+    if (j) {
+        j.scrollIntoView({ block: 'nearest' });
+        window.scrollTo(0, 0);
+    }
+
+    originalNoAutoRecenter = viewer.noAutoRecenter;
+    viewer.noAutoRecenter = true;
+
+});
+
+viewer.addEventListener('manipulate-end', e => {
+
+    viewer.noAutoRecenter = originalNoAutoRecenter;
+
+});
+var account_payload = document.getElementById('email_data').value
+//const base64Decoded = atob(decodeURIComponent(account_payload)); // safer
+//console.log("Decoded string:", base64Decoded);
+var account_Data = {"email":"teslacoil358@gmail.com","project_name":"BD3"}  //JSON.parse(atob(account_payload)); 
+var profile_payload = {}; // Send the profile control joint data into the json of the IoT request data 
+var joint_package = {} 
+var joint_type = {}; 
+var data_joint_angle = {}; //Get all the data joint angle control to control the motion planning and teach robot motion system automatically move with high precision 
+var startTime = Date.now()
+//console.log(account_Data); 
+function IoT_control_joint(account_Data,joint_types,data_joint_angle){
+       
+       var email = account_Data['email'] 
+       var project_name = account_Data['project_name']        
+       //console.log(email,project_name,data_joint_angle); 
+       joint_type[joint_types] = data_joint_angle;
+       joint_package[project_name] = joint_type; 
+       profile_payload[email] = joint_package; 
+       console.log(profile_payload); // get the profile payload 
+       //Fetch the payload
+       // POST
+       fetch('/IoT_connect', {
+          // Declare what type of data we're sending
+          headers: {
+                 'Content-Type': 'application/json'
+          },
+         // Specify the method
+         method: 'POST',
+         // A JSON payload
+         body: JSON.stringify(profile_payload)
+         }).then(function (response) { // At this point, Flask has printed our JSON
+         return response.text();
+         }).then(function (text) {
+          console.log('POST response: ');
+          // Should be 'OK' if everything was successful
+               console.log(text);
+                
+        });
+      }
+// create the sliders
+viewer.addEventListener('urdf-processed', () => {
+
+    const r = viewer.robot;
+    Object
+        .keys(r.joints)
+        .sort((a, b) => {
+
+            const da = a.split(/[^\d]+/g).filter(v => !!v).pop(); //.pop(); 
+            const db = b.split(/[^\d]+/g).filter(v => !!v).pop();
+
+            if (da !== undefined && db !== undefined) {
+                const delta = parseFloat(da) - parseFloat(db);
+                if (delta !== 0) return delta;
+            }
+
+            if (a > b) return 1;
+            if (b > a) return -1;
+            return 0;
+
+        })
+        .map(key => r.joints[key])
+        .forEach(joint => {
+
+            const li = document.createElement('li');
+            li.innerHTML =
+            `
+            <span title="${ joint.name }">${ joint.name }</span>
+            <input type="range" value="0" step="0.0001"/>
+            <input type="number" step="0.0001" />
+            `;
+            li.setAttribute('joint-type', joint.jointType);
+            li.setAttribute('joint-name', joint.name);
+
+            sliderList.appendChild(li);
+
+            // update the joint display
+            var slider = li.querySelector('input[type="range"]');
+            var input = li.querySelector('input[type="number"]');
+            li.update = () => {
+                const degMultiplier = radiansToggle.classList.contains('checked') ? 1.0 : RAD2DEG;
+                let angle = joint.angle;
+
+                if (joint.jointType === 'revolute' || joint.jointType === 'continuous') {
+                    angle *= degMultiplier;
+                }
+
+                if (Math.abs(angle) > 1) {
+                    angle = angle.toFixed(1);
+                    //console.log("Fixed angle ",joint.name,joint.jointType,angle)
+                    data_joint_angle[joint.name] = angle;
+                    //console.log(data_joint_angle);
+                    IoT_control_joint(account_Data,joint.jointType,data_joint_angle);
+                    if(Motion_rec['Start_rec'] != undefined){
+                                if(Object.keys(Motion_rec['Start_rec'])[0] == "Model"){
+                                               
+                                            console.log("Recording joint from the 3d model")
+                                            joint_static[joint.name].push(parseFloat(angle))   
+                                            console.log(joint_static);  
+                                }
+                                if(Object.keys(Motion_rec["Start_rec"]) == "Save_record"){
+                           
+                           console.log("Save the motion record ",joint_static);
+                           
+                           //Fetch back the data recorder into the back end code 
+                           //Data will consist of email project name host machine name                 
+                           fetch('/Recorded_joint_data',{
+                                       // Declare what type of data we're sending
+                                   headers: {
+                                      'Content-Type': 'application/json'
+                                   },
+                                  // Specify the method
+                                  method: 'POST',
+                                  // A JSON payload
+                                  body: JSON.stringify({"email":JSON.parse(atob(document.getElementById('email_data').value))['email']
+                                  ,"joints_recorded":joint_static
+                               })
+                           }).then(function (response) { // At this point, Flask has printed our JSON
+                           return response.text();
+                           }).then(function (text) {
+                           console.log('POST response: ');
+                                   // Should be 'OK' if everything was successful
+                                   var motion_data = JSON.parse(text);
+                                   console.log("Response from save data",motion_data)
+                                   //alert("Save recorded joints data successfully!")
+
+                        });
+
+                } 
+
+                    }
+                } else {
+                    angle = angle.toPrecision(2);
+                    //console.log("Precision angle ",joint.name,joint.jointType,angle)
+                    data_joint_angle[joint.name] = angle;
+                    //console.log(data_joint_angle);  
+                    IoT_control_joint(account_Data,joint.jointType,data_joint_angle); 
+                    if(Motion_rec['Start_rec'] != undefined){
+                                if(Object.keys(Motion_rec['Start_rec'])[0] == "Model"){
+                                               
+                                            console.log("Recording joint from the 3d model")
+                                            joint_static[joint.name].push(parseFloat(angle))    
+                                            console.log(joint_static); 
+                                }
+                                if(Object.keys(Motion_rec["Start_rec"]) == "Save_record"){
+                           
+                           console.log("Save the motion record ",joint_static);
+                           
+                           //Fetch back the data recorder into the back end code 
+                           //Data will consist of email project name host machine name                 
+                           fetch('/Recorded_joint_data',{
+                                       // Declare what type of data we're sending
+                                   headers: {
+                                      'Content-Type': 'application/json'
+                                   },
+                                  // Specify the method
+                                  method: 'POST',
+                                  // A JSON payload
+                                  body: JSON.stringify({"email":JSON.parse(atob(document.getElementById('email_data').value))['email']
+                                  ,"joints_recorded":joint_static
+                               })
+                           }).then(function (response) { // At this point, Flask has printed our JSON
+                           return response.text();
+                           }).then(function (text) {
+                           console.log('POST response: ');
+                                   // Should be 'OK' if everything was successful
+                                   var motion_data = JSON.parse(text);
+                                   console.log("Response from save data",motion_data)
+                                   //alert("Save recorded joints data successfully!")
+
+                        });
+
+                } 
+
+                    }
+                }
+                
+                input.value = parseFloat(angle);
+
+                // directly input the value
+                slider.value = joint.angle;
+                
+                if (viewer.ignoreLimits || joint.jointType === 'continuous') {
+                    slider.min = -6.28;
+                    slider.max = 6.28;
+
+                    input.min = -6.28 * degMultiplier;
+                    input.max = 6.28 * degMultiplier;
+                    //Wheel type joint
+
+                } else {
+                    //Slider prismatic joint control
+
+                    slider.min = joint.limit.lower;
+                    slider.max = joint.limit.upper;
+
+                    input.min = joint.limit.lower * degMultiplier;
+                    input.max = joint.limit.upper * degMultiplier;
+                }
+            };
+
+            switch (joint.jointType) {
+
+                case 'continuous':
+                case 'prismatic':
+                case 'revolute':
+                    break;
+                default:
+                    li.update = () => {};
+                    input.remove();
+                    slider.remove();
+
+            }
+
+            slider.addEventListener('input', () => {
+                viewer.setJointValue(joint.name, slider.value);
+                li.update();
+            });
+
+            input.addEventListener('change', () => {
+                const degMultiplier = radiansToggle.classList.contains('checked') ? 1.0 : RAD2DEG;
+                viewer.setJointValue(joint.name, input.value * degMultiplier);
+                li.update();
+            });
+
+            li.update();
+
+            sliders[joint.name] = li;
+
+        });
+      console.log("List append joints value: ",r.joints);
+});
+
+document.addEventListener('WebComponentsReady', () => {
+
+    viewer.loadMeshFunc = (path, manager, done) => {
+
+        const ext = path.split(/\./g).pop().toLowerCase();
+        switch (ext) {
+
+            case 'gltf':
+            case 'glb':
+                new GLTFLoader(manager).load(
+                    path,
+                    result => done(result.scene),
+                    null,
+                    err => done(null, err),
+                );
+                break;
+            case 'obj':
+                new OBJLoader(manager).load(
+                    path,
+                    result => done(result),
+                    null,
+                    err => done(null, err),
+                );
+                break;
+            case 'dae':
+                new ColladaLoader(manager).load(
+                    path,
+                    result => done(result.scene),
+                    null,
+                    err => done(null, err),
+                );
+                break;
+            case 'stl':
+                new STLLoader(manager).load(
+                    path,
+                    result => {
+                        const material = new THREE.MeshPhongMaterial();
+                        const mesh = new THREE.Mesh(result, material);
+                        done(mesh);                   
+                    },
+                    null,
+                    err => done(null, err),
+                );
+                break;
+
+        }
+
+    };
+
+    document.querySelector('li[urdf]').dispatchEvent(new Event('click'));
+
+    if (/javascript\/example\/bundle/i.test(window.location)) {
+        viewer.package = '../../../urdf';
+    }
+
+    registerDragEvents(viewer, () => {
+        setColor('#263238');
+        animToggle.classList.remove('checked');
+        updateList();
+    });
+
+});
+
+
+var data_joints_iter = {};
+var data_joint_record = {};  
+var Store_currentjoint = {}; 
+var angle_resolution = {}; 
+// init 2D UI and animation
+const updateAngles = () => {
+    // Control the animation feedback from the input of the IoT sensor here   
+    if (!viewer.setJointValue) return;
+
+    // reset everything to 0 first
+    //const resetJointValues = viewer.angles; //Kalman
+    
+    //for (const name in resetJointValues) resetJointValues[name] = 0;
+    //viewer.setJointValues(resetJointValues);    
+
+    // animate the legs
+    //var kf = new KalmanFilter();
+    const time = Date.now() / 3e2;
+    //console.log("Loop check iteration")
+    //While animation running the speech recognition and other automated system will be connect and run to analyze the system in real-time 
+    //Fetch all the joints function here and running inside the loop 
+    // POST
+    //console.log(JSON.parse(atob(document.getElementById('email_data').value))['email']); 
+    //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>..
+                        //Before start anything please check if the selection is string or dictionnary 
+                        //If string check if Stop_recorder_motion or Play_record 
+    //execute the method of the function 
+    //if(Object.keys(Motion_rec['Start_rec']) = "Play_record"){
+       //console.log("Current command",Object.keys(Motion_rec['Start_rec']))
+       console.log("Status of recorder ",Motion_rec)
+       //let project_names = document.getElementById("model_name").value.split(".")[0];
+       //Check type of feedback control too        
+       fetch('/feedback_motion_control', {
+         // Declare what type of data we're sending
+         headers: {
+              'Content-Type': 'application/json'
+         },
+        // Specify the method
+        method: 'POST',
+        // A JSON payload
+        body: JSON.stringify({
+                 "email": String(JSON.parse(atob(document.getElementById('email_data').value))['email'])
+        })
+        }).then(function (response) { // At this point, Flask has printed our JSON
+       return response.text();
+       }).then(function (text) {
+       console.log('POST response: ');
+       // Should be 'OK' if everything was successful
+        var feedback_data_sensor = JSON.parse(text);
+        //Get joint data in the loop iteration 
+        //const offset = i * Math.PI / 3;
+        //const ratio = Math.max(0, Math.sin(time + offset)); 
+        console.log(feedback_data_sensor,Object.keys(feedback_data_sensor).length); 
+        //for(let i = 0; i <= Object.keys(feedback_data_sensor).length; i++){
+        const offset = Math.PI / 3;
+        const ratio = Math.max(0, Math.sin(time + offset));
+        const offet2  = 2*Math.PI/3; 
+        const ratio2 = Math.max(0, Math.sin(time+offet2));               
+                       //var joints_name = Object.keys(feedback_data_sensor)[i].split('_')
+                       //console.log("Header joint part",joints_name[0]);
+                       //feedback_data_sensor.get()
+        //console.log("Angle output ",Object.keys(feedback_data_sensor)[i],THREE.MathUtils.lerp(-4.2, 180, ratio)); 
+        //console.log(feedback_data_sensor['HY_1']['Analog-read'],feedback_data_sensor['HY_2']['Analog-read'])
+        data_joints_iter['Joint_move'] = feedback_data_sensor        
+        console.log(data_joints_iter)
+        var joint_sensor_name = Object.keys(data_joints_iter["Joint_move"]); // Get the list of the joint sensors 
+        console.log(joint_sensor_name);
+        fetch('/output_feedbackcontrol', {
+         // Declare what type of data we're sending
+         headers: {
+              'Content-Type': 'application/json'
+         },
+        // Specify the method
+        method: 'POST',
+        // A JSON payload
+        body: JSON.stringify({
+                 "email": String(JSON.parse(atob(document.getElementById('email_data').value))['email'])
+        })
+        }).then(function (response) { // At this point, Flask has printed our JSON
+       return response.text();
+       }).then(function (text) {
+       console.log('POST response: ');
+       // Should be 'OK' if everything was successful
+        var package_data_sensor = JSON.parse(text);
+        console.log("Current feedback: ",package_data_sensor); 
+       
+        var r = 0; 
+        
+        for(r >= 0; r <joint_sensor_name.length;r++){
+            //var slider = li.querySelector('input[type="range"]');
+            //var input = li.querySelector('input[type="number"]');
+             console.log("Joint_analog_",joint_sensor_name[r],data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']);
+             //var kal_fil = data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'] - kf.filter(data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])
+             //console.log("Error kf filter ",kal_fil)
+             //var emaildat = String(JSON.parse(atob(document.getElementById('email_data').value))['email']); 
+             var project_names = document.getElementById("model_name").value.split(".")[0]
+             var joint_typesdat = package_data_sensor[project_names]
+             var joinst_extract = Object.keys(joint_typesdat)[0];  
+             console.log("All joints list: ",project_names,joint_typesdat[joinst_extract]) //joint_list); 
+             var error_val = parseFloat(joint_typesdat[joinst_extract][joint_sensor_name[r]]) 
+             var goal = parseFloat(data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']); 
+             
+             var pd_val = goal - error_val;
+             console.log("Goal and error",joint_sensor_name[r],goal,error_val,pd_val,(data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])+pd_val,(data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])*DEG2RAD,); 
+             //viewer.setJointValue(joint_sensor_name[r], THREE.MathUtils.lerp((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']),(data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']),2.8)*DEG2RAD+pd_val); //*DEG2RAD);   
+             
+             var endTime = Date.now();
+
+             // Calculate the delta time in milliseconds
+             var  deltaTimeMs = endTime - startTime;
+
+             // Convert milliseconds to seconds
+             var deltaTimeSeconds = deltaTimeMs / 1000;
+             var computedAngle = (error_val + pd_val - pd_val * 0.0342) * DEG2RAD;
+             
+                   //viewer.setJointValue(joint_sensor_name[r], (goal+pd)*DEG2RAD); //*DEG2RAD);
+             //Check the angle store inside the dictionary list
+             //for (let i = (data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])-1+0.0; i < (data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])+0.0; i += 0.01) {  
+             //viewer.setJointValue(joint_sensor_name[r],(data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])*DEG2RAD); //*DEG2RAD); 
+             //if((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])+pd <= (data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])){     
+             //viewer.setJointValue(joint_sensor_name[r],(data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])*DEG2RAD); //*DEG2RAD) 
+             if(goal == error_val){
+                
+                console.log("PD Increasing value: ",goal,error_val,pd_val,typeof(pd_val));
+                //viewer.setJointValue(joint_sensor_name[r],((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']))*DEG2RAD);
+                //viewer.setJointValue(joint_sensor_name[r], THREE.MathUtils.lerp((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']),(data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']),ratio)*DEG2RAD); //*DEG2RAD);
+                viewer.setJointValue(joint_sensor_name[r],(error_val+pd_val)*DEG2RAD); //*DEG2RAD) 
+                //input.value = parseFloat((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']));
+                //slider.value = parseFloat((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])); 
+             }
+             if(goal > error_val){
+                var degrad_pd = THREE.MathUtils.lerp((pd_val),(pd_val),ratio)*DEG2RAD; 
+                console.log("PD Increasing value: ",goal,error_val,pd_val,typeof(pd_val),degrad_pd);
+                //viewer.setJointValue(joint_sensor_name[r],((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']))*DEG2RAD);          
+                //viewer.setJointValue(joint_sensor_name[r], THREE.MathUtils.lerp((goal+pd_val),(goal+pd_val),ratio)*DEG2RAD); //*DEG2RAD)
+                viewer.setJointValue(joint_sensor_name[r],(error_val+pd_val+pd_val*0.0342)*DEG2RAD); //*DEG2RAD)  
+
+                //viewer.setJointValue(joint_sensor_name[r],(data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])*DEG2RAD); //*DEG2RAD)  
+                //input.value = parseFloat((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']));
+                //slider.value = parseFloat((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])); 
+             }   
+             if(goal < error_val){
+                 var degrad_pd = THREE.MathUtils.lerp((pd_val),(pd_val),ratio)*DEG2RAD;
+                 console.log("PD Decrease value: ",goal,error_val,pd_val,typeof(pd_val),degrad_pd); 
+                 //viewer.setJointValue(joint_sensor_name[r],((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']))*DEG2RAD);
+                 //viewer.setJointValue(joint_sensor_name[r], THREE.MathUtils.lerp((goal+pd_val),(goal+pd_val),ratio)*DEG2RAD); //*DEG2RAD);
+                 viewer.setJointValue(joint_sensor_name[r],(error_val+pd_val-pd_val*0.0342)*DEG2RAD); //*DEG2RAD) 
+                 //viewer.setJointValue(joint_sensor_name[r],(data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])*DEG2RAD); //*DEG2RAD) 
+                //input.value = parseFloat((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']));
+                 //slider.value = parseFloat((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read'])); 
+             }
+             
+             //viewer.setJointValue(joint_sensor_name[r], THREE.MathUtils.lerp((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']),(data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']),ratio)*DEG2RAD+degrad_pd); //*DEG2RAD) 
+
+            //viewer.setJointValue(joint_sensor_name[r], THREE.MathUtils.lerp((data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']),(data_joints_iter['Joint_move'][joint_sensor_name[r]]['Analog-read']),ratio)*DEG2RAD+degrad_pd); //*DEG2RAD);
+              
+             //}
+             
+             //viewer.setJointValue("HY_2", data_joints_iter['Joint_move']["HY_2"]['Analog-read']*DEG2RAD); //*DEG2RAD); 
+             //check_joint_param['last_joints'] = joint_sensor_name.length-1;  
+
+         }
+        });    
+
+        //Check the loop if the selection of the recorder is sensor 
+
+    }); 
+
+    if(Motion_rec["Start_rec"] != undefined){
+                console.log("Reading the status of recorder: ",Object.keys(Motion_rec["Start_rec"])[0]); // Get the data record output 
+                if(Object.keys(Motion_rec["Start_rec"])[0] == "Sensors"){         
+                         console.log("Activatate record"); 
+                         console.log(Motion_rec["Start_rec"]["Sensors"]);  // 
+                         console.log("Get joint values for recorder ",data_joints_iter);   
+                         console.log("Joint_data_recorder",data_joints_iter['Joint_move'])
+                         var joint_list_name = Object.keys(data_joints_iter['Joint_move'])
+                        
+                         var rj = 0; 
+                         for(rj >=0;rj<=joint_list_name.length-1;rj++){
+                             var lst_dat = joint_static[joint_list_name[rj]][joint_static[joint_list_name[rj]].length-1]
+                             var current_jsdat = (data_joints_iter['Joint_move'][joint_list_name[rj]]['Analog-read'])
+                             if(current_jsdat != lst_dat){
+                                       joint_static[joint_list_name[rj]].push(current_jsdat);
+                                       console.log("Recorded_joint_data "+joint_list_name[rj],joint_static[joint_list_name[rj]],"Last data of "+joint_list_name[rj],joint_static[joint_list_name[rj]][joint_static[joint_list_name[rj]].length-1])
+                                        
+                            }  
+
+                         }
+                         
+                         Motion_rec["Start_rec"]["Sensors"] = joint_static; //Get the recorded data to save automatically 
+                         //If the data hit on save record then save the record from the motion rec right here 
+                        
+                         
+                             
+                 }
+                 console.log("Motion_data_record ",Motion_rec); 
+                 if(Object.keys(Motion_rec["Start_rec"]) == "Stop_record"){
+                     try{
+                       if(joint_lst != {}){ 
+                       var rj = 0;    
+                       joint_lst = Object.keys(joint_static)        
+                       for(rj>=0; rj<=joint_lst.length-1; rj++){
+                                    delete joint_lst[joint_lst[rj]]   
+                       }
+                       }
+                    }
+                    catch{
+                         console.log("Completeletely deleted")
+                    }
+                }
+                 if(Object.keys(Motion_rec["Start_rec"]) == "Save_record"){
+                           
+                            console.log("Save the motion record ",joint_static);
+                            
+                            //Fetch back the data recorder into the back end code 
+                            //Data will consist of email project name host machine name                 
+                            fetch('/Recorded_joint_data',{
+                                        // Declare what type of data we're sending
+                                    headers: {
+                                       'Content-Type': 'application/json'
+                                    },
+                                   // Specify the method
+                                   method: 'POST',
+                                   // A JSON payload
+                                   body: JSON.stringify({"email":JSON.parse(atob(document.getElementById('email_data').value))['email']
+                                   ,"joints_recorded":joint_static
+                                })
+                            }).then(function (response) { // At this point, Flask has printed our JSON
+                            return response.text();
+                            }).then(function (text) {
+                            console.log('POST response: ');
+                                    // Should be 'OK' if everything was successful
+                                    var motion_data = JSON.parse(text);
+                                    Motion_rec["Start_rec"] = motion_data["Start_rec"]
+
+                         });
+
+                 } 
+    } 
+   //}
+    //This will not need to be run in the loop update according to the real angle loop will be running from th real-time sensor reading
+    /*
+    for (let i = 1; i <= 6; i++) {
+        //Collect the joint setting animation input into here to run the nimation joint function in recorded motion control  
+        const offset = i * Math.PI / 3;
+        const ratio = Math.max(0, Math.sin(time + offset));
+        viewer.setJointValue(`HY${ i }`, THREE.MathUtils.lerp(-4.2, 180, ratio) * DEG2RAD);   // Lerp is loop iteration boundary of the angle 
+        viewer.setJointValue(`KP${ i }`, THREE.MathUtils.lerp(90, 150, ratio) * DEG2RAD);
+        viewer.setJointValue(`AP${ i }`, THREE.MathUtils.lerp(-30, -60, ratio) * DEG2RAD);
+        viewer.setJointValue(`TC${ i }A`, THREE.MathUtils.lerp(0, 0.065, ratio));
+        viewer.setJointValue(`TC${ i }B`, THREE.MathUtils.lerp(0, 0.065, ratio));
+        viewer.setJointValue(`W${ i }`, window.performance.now() * 0.0);
+     
+    
+    }
+    */
+   //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+   
+};
+
+const updateLoop = () => {
+
+    if (animToggle.classList.contains('checked')) {
+        updateAngles();
+    }
+
+    requestAnimationFrame(updateLoop);
+
+};
+
+const updateList = () => {
+
+    document.querySelectorAll('#urdf-options li[urdf]').forEach(el => {
+
+        el.addEventListener('click', e => {
+
+            const urdf = e.target.getAttribute('urdf');
+            const color = e.target.getAttribute('color');
+
+            viewer.up = '+Z';
+            document.getElementById('up-select').value = viewer.up;
+            viewer.urdf = urdf;
+            animToggle.classList.remove('checked');
+            setColor(color);
+
+        });
+
+    });
+
+};
+
+updateList();
+
+document.addEventListener('WebComponentsReady', () => {
+
+    animToggle.addEventListener('click', () => animToggle.classList.toggle('checked'));
+
+    // stop the animation if user tried to manipulate the model
+    viewer.addEventListener('manipulate-start', e => animToggle.classList.remove('checked'));
+    viewer.addEventListener('urdf-processed', e => updateAngles());
+    updateLoop();
+    viewer.camera.position.set(-5.5, 3.5, 5.5);
+    
+
+});
+
+
+        </script>
+         
+    </body>
+    <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KGJLJB0CMY">
+</script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KGJLJB0CMY');
+</script>
+</html>
