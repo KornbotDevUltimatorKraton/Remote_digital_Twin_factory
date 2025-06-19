@@ -39,7 +39,9 @@ async def motion_control(request: Request, encoded_data: str):
 async def IoT_control_motion(request: Request):
       reqiot = await request.json()
       print("Request IoT data: ",reqiot)
+      #Store the current position of the robot for getting request of the potion of motion 
       return reqiot
+
 
 '''
 @app.get("/motion_control/{encoded_data}", response_class=HTMLResponse)
